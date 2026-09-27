@@ -1,9 +1,30 @@
-// Smart API base resolution: works with Flask (port 5000), VS Code Live Server (port 5500), and Render
-let API_BASE = window.location.origin;
-if (window.location.protocol === 'file:' || (window.location.port !== '5000' && window.location.port !== '')) {
-    API_BASE = 'http://localhost:5000';
+// Production Render Backend API URL
+const PRODUCTION_API = 'https://tech-hub-1-vc99.onrender.com';
+
+// Smart API base resolution: seamlessly handles Localhost, Vercel, and Render
+function resolveApiBase() {
+    const host = window.location.hostname;
+    // 1. Localhost development (Flask port 5000, Live Server port 5500, or local file)
+    if (host === 'localhost' || host === '127.0.0.1' || window.location.protocol === 'file:') {
+        if (window.location.port === '5000') {
+            return window.location.origin;
+        }
+        return 'http://localhost:5000';
+    }
+    // 2. Production Vercel deployment (tech-hub-nine.vercel.app or any *.vercel.app)
+    if (host.includes('vercel.app')) {
+        return PRODUCTION_API;
+    }
+    // 3. Running directly on Render
+    if (host.includes('onrender.com')) {
+        return window.location.origin;
+    }
+    // 4. Default to production Render backend
+    return PRODUCTION_API;
 }
-const REMOTE_FALLBACK_API = 'https://techhub-iasz.onrender.com';
+
+let API_BASE = resolveApiBase();
+const REMOTE_FALLBACK_API = PRODUCTION_API;
 
 let currentToken = localStorage.getItem('token') || null;
 let currentUser = JSON.parse(localStorage.getItem('user') || 'null');
