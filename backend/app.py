@@ -8,8 +8,12 @@ from database import init_db
 from routes.auth_routes import auth_bp
 from routes.search_routes import search_bp
 
-# Define frontend path relative to backend
+# Define frontend path with multi-location fallback
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / 'frontend'
+if not FRONTEND_DIR.exists():
+    FRONTEND_DIR = Path(__file__).resolve().parent / 'frontend'
+if not FRONTEND_DIR.exists():
+    FRONTEND_DIR = Path(os.getcwd()) / 'frontend'
 
 def create_app():
     app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path='')
@@ -49,5 +53,6 @@ app = create_app()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    is_debug = os.environ.get('FLASK_DEBUG', 'False').lower() in ['true', '1']
     print(f"🚀 TechHub Server running at: http://localhost:{port}")
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=is_debug)

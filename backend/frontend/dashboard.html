@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - TechHub</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-logo" onclick="redirect('dashboard.html')" style="cursor:pointer;">TechHub</div>
+        <div class="navbar-links">
+            <a href="dashboard.html">Search</a>
+            <a href="history.html">History</a>
+            <a href="saved.html">Saved</a>
+            <a href="profile.html">Profile</a>
+            <button class="btn-icon" onclick="toggleTheme()" id="theme-icon" title="Toggle Theme">🌙</button>
+            <a href="#" onclick="logout()" style="color:var(--danger);">Logout</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <h1 style="font-size:32px; font-weight:700; margin-bottom:28px; text-align:center;">What question are you exploring today?</h1>
+        
+        <div class="search-box">
+            <!-- File upload on the left side of the input -->
+            <input type="file" id="file-upload-input" style="display:none;" onchange="handleFileUpload(event)">
+            <button class="btn-upload" id="upload-btn" type="button" onclick="triggerFileUpload()" title="Attach file, code snippet, or document">
+                📎
+            </button>
+            <input type="text" id="search-input" placeholder="Ask any question, or request code in Python, Java, C++, Go, Rust, JS, C#...">
+            <button class="btn-primary" onclick="performSearch()">Search</button>
+        </div>
+
+        <!-- Attached File Preview Badge -->
+        <div id="attached-file-bar" style="display:none;" class="attached-file-badge">
+            <span>📄</span>
+            <span id="attached-file-name" style="font-weight:600;">file.txt</span>
+            <span id="attached-file-size" style="color:var(--text-muted);font-size:12px;"></span>
+            <button type="button" class="btn-remove-file" onclick="removeAttachedFile()" title="Remove file">✕</button>
+        </div>
+        
+        <div class="suggestions">
+            <span class="chip" onclick="quickSearch('Binary search in Rust')">🦀 Binary search in Rust</span>
+            <span class="chip" onclick="quickSearch('Fibonacci in Go')">🐹 Fibonacci in Go</span>
+            <span class="chip" onclick="quickSearch('QuickSort in C++')">⚡ QuickSort in C++</span>
+            <span class="chip" onclick="quickSearch('REST API in Node.js')">🟨 REST API in Node.js</span>
+            <span class="chip" onclick="quickSearch('Reverse string in Java')">☕ Reverse string in Java</span>
+            <span class="chip" onclick="quickSearch('Why is the sky blue?')">🌌 Why is the sky blue?</span>
+            <span class="chip" onclick="quickSearch('How does compound interest work?')">📈 Compound interest</span>
+            <span class="chip" onclick="quickSearch('How to center a div in CSS')">🎨 Center div in CSS</span>
+            <span class="chip" onclick="quickSearch('Write a python function to check if a number is prime')">🐍 Python Prime Check</span>
+            <span class="chip" onclick="quickSearch('SQL join query')">🗄️ SQL join</span>
+        </div>
+        
+        <p style="color:var(--text-muted); font-size:13px; text-align:center; margin-top:46px;">
+            Simultaneously aggregates and compares answers from ChatGPT (GPT-4o), Google Gemini AI, Wikipedia, Web Search, YouTube, Reddit, Stack Overflow, MDN Web Docs, and GeeksforGeeks to select the #1 real-world solution.
+        </p>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>

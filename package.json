@@ -1,0 +1,12 @@
+{
+  "name": "techhub",
+  "version": "1.0.0",
+  "description": "TechHub Universal Knowledge & Consensus Answer Engine",
+  "main": "start_server.py",
+  "scripts": {
+    "start": "python -m gunicorn --chdir backend -b 0.0.0.0:$PORT app:app || python start_server.py",
+    "build": "pip install -r backend/requirements.txt || pip install -r requirements.txt"
+  },
+  "author": "Manoj Kumar",
+  "license": "MIT"
+}

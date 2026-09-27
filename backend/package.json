@@ -1,0 +1,12 @@
+{
+  "name": "techhub-backend",
+  "version": "1.0.0",
+  "description": "TechHub Multi-Source Knowledge & Consensus Engine Backend",
+  "main": "app.py",
+  "scripts": {
+    "start": "python -m gunicorn -b 0.0.0.0:$PORT app:app || python app.py",
+    "build": "pip install -r requirements.txt"
+  },
+  "author": "Manoj Kumar",
+  "license": "MIT"
+}
