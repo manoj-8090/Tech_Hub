@@ -59,7 +59,7 @@ class ConsensusService:
     @staticmethod
     def is_technical_topic(topic: str) -> bool:
         return topic in [
-            'technology_coding', 'html_css', 'python', 'javascript', 'typescript',
+            'technology_coding', 'competitive_programming', 'html_css', 'python', 'javascript', 'typescript',
             'database', 'sql', 'git', 'devops', 'java', 'cpp', 'csharp', 'c',
             'go', 'rust', 'kotlin', 'swift', 'php', 'ruby', 'bash', 'dart'
         ]
@@ -67,6 +67,10 @@ class ConsensusService:
     @classmethod
     def detect_topic(cls, query: str) -> str:
         q = query.lower()
+
+        # Check competitive programming platforms
+        if any(w in q for w in ['leetcode', 'codechef', 'geeksforgeeks', 'gfg', 'hackerrank', 'codeforces', 'atcoder']):
+            return 'competitive_programming'
 
         # Check explicit language request first
         lang = cls.detect_language(query)
@@ -175,7 +179,9 @@ class ConsensusService:
                 
                 # Formulate real-world explanation
                 if is_tech:
-                    if src == 'ChatGPT':
+                    if topic == 'competitive_programming':
+                        best_rationale = f"Selected as the #1 Optimal Platform Solution: Optimal algorithmic time and space complexity with clean, verified implementation and edge-case handling from {src}."
+                    elif src == 'ChatGPT':
                         best_rationale = "Selected as the #1 Real-World Solution: Delivers clean, modern, production-grade code with error-handling and zero deprecated dependencies."
                     elif src == 'Gemini AI':
                         best_rationale = "Selected as the #1 Real-World Solution: Concise, verified syntax optimized for current language standards with clear implementation examples."

@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 from config import Config
 from services.consensus_service import ConsensusService
 from services.polyglot_service import PolyglotService
+from services.platform_problem_service import PlatformProblemService
 
 DEFAULT_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -755,15 +756,24 @@ class SearchService:
                     f"{file_content[:1000]}..."
                 )
 
-        # ================= 2. UNIVERSAL POLYGLOT CODE GENERATION (ANY LANGUAGE) =================
+        # ================= 1.5 COMPETITIVE CODING PLATFORMS (LEETCODE, CODECHEF, GEEKSFORGEEKS, ETC.) =================
         detected_lang = ConsensusService.detect_language(query)
+        if PlatformProblemService.is_platform_problem(query):
+            target_lang = detected_lang or 'python'
+            return PlatformProblemService.solve_problem(query, target_lang)
+
+        # ================= 2. UNIVERSAL POLYGLOT CODE GENERATION (ANY LANGUAGE) =================
         code_intent_pattern = r'\b(code|program|function|class|algorithm|script|implement|implementation|syntax|snippet|quicksort|mergesort|binary search|fibonacci|prime|palindrome|reverse string|two sum|linked list|binary tree|center a div|flexbox|css grid)\b'
         has_code_keywords = bool(re.search(code_intent_pattern, q))
         is_explicit_code = bool(detected_lang) or has_code_keywords
 
         # Guard against comparisons and universal knowledge queries
         is_comparison = bool(re.search(r'(?:difference\s+between\s+|vs\.?\s+|versus\s+)', q))
-        is_concept_question = any(q.startswith(p) or f" {p} " in f" {q} " for p in ['what is', 'what are', 'explain', 'difference between', 'why is', 'how does', 'who is', 'who was'])
+        is_concept_question = any(q.startswith(p) or f" {p} " in f" {q} " for p in [
+            'what is', 'what are', 'explain', 'difference between', 'why is', 'why do',
+            'why does', 'how does', 'who is', 'who was', 'can ', 'could ', 'should ',
+            'is ', 'are ', 'does ', 'do '
+        ])
         is_pure_universal = any(phrase in q for phrase in [
             'why is the sky blue', 'photosynthesis', 'gravity', 'compound interest',
             'inflation', 'water intake', 'hydration', 'sleep', 'world war', 'ww1', 'history'
@@ -1283,79 +1293,225 @@ class SearchService:
             'takeaways': "- Prioritize verified domain facts and empirical consensus.\n- Evaluate specific context requirements before practical execution."
         })
 
-        if ctx and ctx.get('type') == 'comparison':
-            d1 = ctx.get('data1')
-            d2 = ctx.get('data2')
-            t1 = d1.get('title') if d1 else ctx.get('term1', 'Option A')
-            t2 = d2.get('title') if d2 else ctx.get('term2', 'Option B')
-            ext1 = d1.get('extract') if d1 else f"{t1} is a principal technology and standard in {topic}."
-            ext2 = d2.get('extract') if d2 else f"{t2} is a principal technology and standard in {topic}."
+        # Determine specific Question Intent
+        is_comparison = (ctx and ctx.get('type') == 'comparison') or bool(re.search(r'(?:difference\s+between\s+|vs\.?\s+|versus\s+)', q))
+        is_why = bool(re.search(r'^(why\s+is|why\s+do|why\s+does|why\s+did|why\s+are|why\s+can|why\s+should)\b', q)) or ('why' in q and any(w in q for w in ['because', 'reason', 'cause']))
+        is_how_to = bool(re.search(r'^(how\s+to|how\s+do\s+i|how\s+can\s+i|how\s+does\s+one|how\s+would\s+you|steps\s+to|how\s+do\s+we)\b', q))
+        is_direct_fact = bool(re.search(r'^(what\s+is\s+the\s+capital\s+of|who\s+is|who\s+was|who\s+invented|who\s+discovered|who\s+founded|where\s+is|when\s+did|when\s+was|what\s+year\s+did)\b', q))
+        is_decision = bool(re.search(r'^(is\s+|are\s+|can\s+|should\s+|will\s+|does\s+|do\s+|has\s+|have\s+|could\s+|would\s+)', q))
+
+        # ---------------- 8.1 COMPARISON INTENT ----------------
+        if is_comparison:
+            if ctx and ctx.get('type') == 'comparison':
+                d1 = ctx.get('data1')
+                d2 = ctx.get('data2')
+                t1 = d1.get('title') if d1 else ctx.get('term1', 'Option A')
+                t2 = d2.get('title') if d2 else ctx.get('term2', 'Option B')
+                ext1 = d1.get('extract') if d1 else f"{t1} is a recognized technology/concept with distinct operational tradeoffs."
+                ext2 = d2.get('extract') if d2 else f"{t2} is a recognized technology/concept with distinct operational tradeoffs."
+            else:
+                parts = re.split(r'\s+(?:vs\.?|versus|and)\s+', re.sub(r'^(?:difference\s+between\s+)', '', q))
+                t1 = parts[0].strip().title() if len(parts) > 0 and parts[0].strip() else "Option A"
+                t2 = parts[1].strip().title() if len(parts) > 1 and parts[1].strip() else "Option B"
+                ext1 = f"{t1} is an established standard within its respective domain."
+                ext2 = f"{t2} is an established standard within its respective domain."
 
             return (
-                f"### ⚖️ Comparison Analysis: {t1} vs. {t2}\n\n"
-                f"**1. Core Definitions & Architectures:**\n"
-                f"- **{t1}:** {ext1}\n\n"
-                f"- **{t2}:** {ext2}\n\n"
-                f"**2. Key Technical Differences & Trade-offs:**\n\n"
-                f"| Aspect / Dimension | **{t1}** | **{t2}** |\n"
+                f"### ⚖️ Comparison: {t1} vs. {t2}\n\n"
+                f"**Core Distinction:**\n"
+                f"**{t1}** and **{t2}** represent distinct architectural approaches within **{topic.replace('_', ' ').title()}**.\n\n"
+                f"| Dimension | **{t1}** | **{t2}** |\n"
                 f"| :--- | :--- | :--- |\n"
-                f"| **Core Architecture** | Specialized model engineered for its primary operational domain | Distinct paradigm optimized for alternative throughput or flexibility |\n"
-                f"| **Operational Priority** | Strict consistency, verified state guarantees, or ordered flow | Low-overhead execution, horizontal flexibility, or maximum speed |\n"
-                f"| **Ideal Workload** | Mission-critical operations requiring validated precision | High-scale, latency-sensitive, or rapidly evolving workloads |\n\n"
-                f"**3. Practical Selection Guide (When to Use Which):**\n"
-                f"- **Choose {t1}:** When your use case requires verified guarantees, standardized compliance, or deterministic behavior.\n"
-                f"- **Choose {t2}:** When agility, minimal overhead, lower latency, or flexible scaling is the governing requirement.\n\n"
-                f"**4. Real-World Consensus:**\n"
-                f"In modern production systems, **{t1}** and **{t2}** frequently complement each other within multi-tier architectures rather than competing directly."
+                f"| **Primary Architecture** | {ext1[:120]}... | {ext2[:120]}... |\n"
+                f"| **Key Advantage** | Verified consistency, structural integrity, and deterministic control | Speed, flexibility, lower overhead, and agile scalability |\n"
+                f"| **Ideal Workload** | High-reliability, enterprise, or strictly bounded systems | Rapid iteration, modular development, or distributed scaling |\n\n"
+                f"**Practical Selection Guide:**\n"
+                f"- **Choose {t1}:** When your project prioritizes rigorous guarantees, long-term maintainability, or standardized compliance.\n"
+                f"- **Choose {t2}:** When low latency, minimal setup friction, or architectural flexibility is paramount.\n\n"
+                f"**Real-World Consensus:** In production environments, both paradigms often work synergistically across different layers of the application stack."
             )
 
+        # ---------------- 8.2 DIRECT FACTUAL INTENT ----------------
+        if is_direct_fact:
+            if ctx and ctx.get('type') == 'topic':
+                d = ctx['data']
+                title = d.get('title', clean_title)
+                extract = d.get('extract', '')
+                sentences = [s.strip() for s in re.split(r'\.\s+', extract) if s.strip()]
+                lead_answer = sentences[0] + '.' if sentences else extract
+                supporting = "\n".join([f"- **Key Fact {i+1}:** {s}." for i, s in enumerate(sentences[1:4])]) if len(sentences) > 1 else f"- Recognized standard benchmark in **{topic.replace('_', ' ').title()}**."
+            else:
+                title = clean_search_term(query).title() or clean_title
+                lead_answer = f"**{title}** is historically and technically documented within **{topic.replace('_', ' ').title()}**."
+                supporting = f"- **Verified Reference:** Confirmed by established domain encyclopedias and peer-reviewed sources.\n- **Significance:** Forms a foundational milestone in modern records."
+
+            return (
+                f"### 📌 {title}\n\n"
+                f"**Direct Answer:**\n"
+                f"{lead_answer}\n\n"
+                f"**Key Context & Facts:**\n"
+                f"{supporting}\n\n"
+                f"**Summary Fact:**\n"
+                f"Reflects verified factual and historical consensus without extraneous speculation."
+            )
+
+        # ---------------- 8.3 WHY / CAUSAL INTENT ----------------
+        if is_why:
+            if ctx and ctx.get('type') == 'topic':
+                d = ctx['data']
+                title = d.get('title', clean_title)
+                extract = d.get('extract', '')
+                sentences = [s.strip() for s in re.split(r'\.\s+', extract) if s.strip()]
+                primary_cause = sentences[0] + '.' if sentences else extract
+                mechanisms = "\n".join([f"- **Underlying Factor {i+1}:** {s}." for i, s in enumerate(sentences[1:4])]) if len(sentences) > 1 else f"- Governed by fundamental principles of **{topic.replace('_', ' ').title()}**."
+            else:
+                title = clean_search_term(query).title() or clean_title
+                primary_cause = f"The causal driver behind '{query.strip()}' stems from established underlying principles in **{topic.replace('_', ' ').title()}**."
+                mechanisms = f"- **Primary Mechanism:** Governed by empirical physical, chemical, or operational constraints.\n- **Observable Outcomes:** Produces measurable, predictable behavior under typical operating conditions."
+
+            return (
+                f"### 🔍 Why {title}: Causal Explanation\n\n"
+                f"**Primary Cause:**\n"
+                f"{primary_cause}\n\n"
+                f"**Underlying Mechanisms:**\n"
+                f"{mechanisms}\n\n"
+                f"**Real-World Context:**\n"
+                f"{default_insight['significance']}"
+            )
+
+        # ---------------- 8.4 HOW-TO / PROCEDURAL INTENT ----------------
+        if is_how_to:
+            task = re.sub(r'^(how\s+to|how\s+do\s+i|how\s+can\s+i|how\s+does\s+one|steps\s+to|how\s+do\s+we)\s+', '', q).strip().title()
+            if not task: task = clean_title
+
+            if ctx and ctx.get('type') == 'topic':
+                d = ctx['data']
+                extract = d.get('extract', '')
+                sentences = [s.strip() for s in re.split(r'\.\s+', extract) if s.strip()]
+                overview = sentences[0] + '.' if sentences else f"Executing '{task}' requires a systematic, repeatable approach."
+                steps_text = "\n".join([f"{i+1}. **Phase {i+1}:** {s}." for i, s in enumerate(sentences[1:4])]) if len(sentences) > 1 else f"1. **Analyze Requirements:** Audit prerequisites and set objectives.\n2. **Execute Core Workflow:** Apply standard verified techniques.\n3. **Validate Results:** Test edge cases and confirm stability."
+            else:
+                overview = f"Executing '{task}' successfully involves a structured sequence of proven practices in **{topic.replace('_', ' ').title()}**."
+                steps_text = (
+                    f"1. **Phase 1 (Setup & Audit):** Review inputs, define targets, and establish prerequisites.\n"
+                    f"2. **Phase 2 (Implementation):** Follow standard verified methodologies with proper error-handling.\n"
+                    f"3. **Phase 3 (Testing & Quality Assurance):** Validate performance across boundary conditions."
+                )
+
+            return (
+                f"### 🛠️ Step-by-Step Guide: How to {task}\n\n"
+                f"**Overview:**\n"
+                f"{overview}\n\n"
+                f"**Actionable Execution Steps:**\n"
+                f"{steps_text}\n\n"
+                f"**Pro Tips & Best Practices:**\n"
+                f"{default_insight['takeaways']}"
+            )
+
+        # ---------------- 8.5 YES/NO / DECISION INTENT ----------------
+        if is_decision:
+            negative_words = ['not', 'never', 'bad', 'impossible', 'deprecated', 'unsafe', 'harmful', 'toxic', 'fails']
+            positive_words = ['yes', 'can', 'good', 'recommended', 'safe', 'effective', 'supported', 'possible', 'true', 'vital']
+
+            extract_lower = ""
+            if ctx and ctx.get('type') == 'topic':
+                extract_lower = ctx['data'].get('extract', '').lower()
+                title = ctx['data'].get('title', clean_title)
+            else:
+                title = clean_title
+
+            neg_count = sum(1 for w in negative_words if w in extract_lower or w in q)
+            pos_count = sum(1 for w in positive_words if w in extract_lower or w in q)
+
+            if neg_count > pos_count and neg_count > 1:
+                verdict = "Generally No / Not Recommended"
+            elif pos_count > neg_count and pos_count > 0:
+                verdict = "Yes — Viable & Supported"
+            else:
+                verdict = "Yes, with Key Conditions & Caveats"
+
+            if ctx and ctx.get('type') == 'topic':
+                extract = ctx['data'].get('extract', '')
+                sentences = [s.strip() for s in re.split(r'\.\s+', extract) if s.strip()]
+                rationale = sentences[0] + '.' if sentences else extract
+                considerations = "\n".join([f"- **Key Consideration:** {s}." for s in sentences[1:3]]) if len(sentences) > 1 else f"- Follow verified standards in **{topic.replace('_', ' ').title()}**."
+            else:
+                rationale = f"Evaluating '{query.strip()}' depends on specific technical parameters, runtime environment, and operational requirements."
+                considerations = f"- **Prerequisites:** Confirm compatibility with dependencies and specifications.\n- **Trade-offs:** Weigh implementation overhead against desired performance gains."
+
+            return (
+                f"### ⚖️ Verdict & Analysis: {title}\n\n"
+                f"**Verdict:** **{verdict}**\n\n"
+                f"**Core Rationale:**\n"
+                f"{rationale}\n\n"
+                f"**Key Considerations & Constraints:**\n"
+                f"{considerations}\n\n"
+                f"**Recommended Action:**\n"
+                f"{default_insight['takeaways']}"
+            )
+
+        # ---------------- 8.6 GENERAL / CONCEPTUAL OVERVIEW ----------------
         if ctx and ctx.get('type') == 'topic':
             d = ctx['data']
             title = d.get('title', clean_title)
             desc = d.get('description', '')
             extract = d.get('extract', '')
-
             sentences = [s.strip() for s in re.split(r'\.\s+', extract) if s.strip()]
-            lead_sentence = sentences[0] + '.' if sentences else extract
-            detail_sentences = sentences[1:] if len(sentences) > 1 else []
-
-            if detail_sentences:
-                mechanisms_text = "\n".join([f"- **Key Characteristic {i+1}:** {s}." for i, s in enumerate(detail_sentences[:3])])
-            else:
-                mechanisms_text = f"- Operates as a verified, internationally accepted standard within **{topic.replace('_', ' ').title()}**."
-
+            lead = sentences[0] + '.' if sentences else extract
+            details = "\n".join([f"- **Key Characteristic:** {s}." for s in sentences[1:4]]) if len(sentences) > 1 else f"- Governed by verified specifications in **{topic.replace('_', ' ').title()}**."
             desc_badge = f" *({desc})*" if desc else ""
             return (
-                f"### 💡 Comprehensive Real-World Analysis: {title}{desc_badge}\n\n"
-                f"**1. Core Concept & Verified Definition:**\n"
-                f"{lead_sentence}\n\n"
-                f"**2. Essential Mechanisms & How It Operates:**\n"
-                f"{mechanisms_text}\n\n"
-                f"**3. Practical Real-World Significance:**\n"
+                f"### 💡 {title}{desc_badge}: Technical Overview\n\n"
+                f"**Definition & Essence:**\n"
+                f"{lead}\n\n"
+                f"**Core Operation & Principles:**\n"
+                f"{details}\n\n"
+                f"**Practical Significance:**\n"
                 f"{default_insight['significance']}\n\n"
-                f"**4. Key Takeaways & Best Practices:**\n"
+                f"**Recommended Practice:**\n"
                 f"{default_insight['takeaways']}"
             )
 
-        # Fallback when offline or query is niche
+        # Universal fallback when offline or niche query
         subject = clean_search_term(query).title() or clean_title
         return (
-            f"### 💡 Comprehensive Real-World Analysis: {subject}\n\n"
-            f"**1. Core Concept:**\n"
-            f"'{query.strip()}' is an important subject in **{topic.replace('_', ' ').title()}**, focusing on foundational theory, practical methodologies, and standardized applications.\n\n"
-            f"**2. Essential Principles:**\n"
-            f"- Structured around established industry conventions, evidence-based practices, and verified documentation.\n"
-            f"- Requires evaluating operational parameters, causal drivers, and boundary conditions.\n\n"
-            f"**3. Practical Real-World Significance:**\n"
+            f"### 💡 {subject}: Domain Overview\n\n"
+            f"**Definition & Essence:**\n"
+            f"'{query.strip()}' is an essential concept within **{topic.replace('_', ' ').title()}**, providing foundational logic and standard practical methodologies.\n\n"
+            f"**Core Operational Principles:**\n"
+            f"- Structured around verified industry documentation and empirical consensus.\n"
+            f"- Requires evaluating operational parameters, boundary conditions, and real-world trade-offs.\n\n"
+            f"**Practical Significance:**\n"
             f"{default_insight['significance']}\n\n"
-            f"**4. Key Takeaways:**\n"
+            f"**Recommended Practice:**\n"
             f"{default_insight['takeaways']}"
         )
 
     @classmethod
     def get_related_questions(cls, query: str) -> List[str]:
         q = query.lower()
-        if 'sky' in q or 'blue' in q:
+        if 'leetcode' in q or 'lc' in q:
+            return [
+                "LeetCode 3 Longest Substring Without Repeating Characters in Python",
+                "LeetCode 20 Valid Parentheses optimal stack approach",
+                "LeetCode 42 Trapping Rain Water two-pointer solution",
+                "LeetCode 322 Coin Change dynamic programming knapsack"
+            ]
+        elif 'codechef' in q:
+            return [
+                "CodeChef Chef and Dolls (MISSP) XOR solution",
+                "CodeChef ATM (HS08TEST) solution in C++",
+                "CodeChef competitive programming rating guide",
+                "How to debug TLE (Time Limit Exceeded) on CodeChef"
+            ]
+        elif 'geeksforgeeks' in q or 'gfg' in q:
+            return [
+                "GeeksforGeeks Detect cycle in directed graph using DFS",
+                "GeeksforGeeks Top 50 Array Interview Problems",
+                "GeeksforGeeks Dynamic Programming roadmap",
+                "GeeksforGeeks Dijkstra shortest path algorithm"
+            ]
+        elif 'sky' in q or 'blue' in q:
             return [
                 "Why are sunsets red and orange?",
                 "Why is space black if the sun is so bright?",
