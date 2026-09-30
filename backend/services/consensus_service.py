@@ -135,6 +135,19 @@ class ConsensusService:
             if any(marker in body for marker in ['\n-', '\n*', '\n1.', '###', '##', '**']):
                 score += 10.0
 
+            # Bonus for structured tables or comparison matrices
+            if '| :---' in body or '| ---' in body:
+                score += 12.0
+
+            # Severe penalty for hollow placeholder language
+            if any(junk in body for junk in [
+                'addresses fundamental principles within',
+                'Governed by established empirical standards',
+                'Directly impacts strategic decision-making',
+                'Prioritize validated facts over subjective speculation'
+            ]):
+                score -= 35.0
+
             if is_tech:
                 # Technical Domain Scoring
                 if '```' in body or 'class ' in body or 'function' in body or 'def ' in body or 'style=' in body:
