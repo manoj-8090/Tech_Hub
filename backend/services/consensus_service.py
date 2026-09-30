@@ -4,10 +4,14 @@ from typing import List, Dict, Any
 class ConsensusService:
     # Source trust ratings (Scale 1-10)
     SOURCE_METADATA = {
+        'LeetCode': {'trust_score': 10, 'reliability': 'Official Judge & Specs', 'base_confidence': 0.98},
         'MDN Web Docs': {'trust_score': 10, 'reliability': 'Authoritative Docs', 'base_confidence': 0.98},
         'Stack Overflow': {'trust_score': 9, 'reliability': 'Very High', 'base_confidence': 0.95},
         'ChatGPT': {'trust_score': 9, 'reliability': 'Very High (AI Verified)', 'base_confidence': 0.94},
         'Gemini AI': {'trust_score': 9, 'reliability': 'Very High (AI Verified)', 'base_confidence': 0.92},
+        'CodeChef': {'trust_score': 9, 'reliability': 'Contest Platform', 'base_confidence': 0.90},
+        'Codeforces': {'trust_score': 9, 'reliability': 'Competitive Platform', 'base_confidence': 0.90},
+        'HackerRank': {'trust_score': 8, 'reliability': 'Interview Prep', 'base_confidence': 0.88},
         'GitHub': {'trust_score': 8, 'reliability': 'High', 'base_confidence': 0.85},
         'GeeksforGeeks': {'trust_score': 8, 'reliability': 'High', 'base_confidence': 0.83},
         'Wikipedia': {'trust_score': 8, 'reliability': 'High', 'base_confidence': 0.80},
