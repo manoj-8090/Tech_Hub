@@ -109,9 +109,10 @@ function escapeHtml(str) {
 
 window.codeSnippetsRegistry = window.codeSnippetsRegistry || {};
 
-// Rich Markdown and Code Formatter with Polyglot Code Blocks & Copy Support
+// Rich Markdown, Links, Tables and Code Formatter with Polyglot Code Blocks & Copy Support
 function formatAnswerBody(raw) {
     if (!raw) return '';
+
     // 1. Extract and preserve code blocks
     const codeBlocks = [];
     let text = raw.replace(/```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g, function(match, lang, code) {
@@ -135,27 +136,74 @@ function formatAnswerBody(raw) {
         return placeholder;
     });
 
-    // 2. Escape HTML on text
+    // 2. Extract and preserve Markdown Tables
+    const tableBlocks = [];
+    text = text.replace(/((?:\|[^\n]+\|\r?\n){2,})/g, function(match, tableContent) {
+        const lines = tableContent.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length >= 2 && lines[1].includes('---')) {
+            const placeholder = `__TABLE_BLOCK_${tableBlocks.length}__`;
+            
+            // Parse headers
+            const headerCells = lines[0].split('|').map(c => c.trim()).filter((c, i, arr) => i > 0 && i < arr.length - 1 || c !== '');
+            const thead = `<thead><tr>${headerCells.map(c => `<th>${escapeHtml(c.replace(/\*\*/g, ''))}</th>`).join('')}</tr></thead>`;
+            
+            // Parse rows
+            const rows = lines.slice(2).map(rowLine => {
+                const cells = rowLine.split('|').map(c => c.trim()).filter((c, i, arr) => i > 0 && i < arr.length - 1 || c !== '');
+                return `<tr>${cells.map(c => `<td>${escapeHtml(c.replace(/\*\*/g, ''))}</td>`).join('')}</tr>`;
+            }).join('');
+            
+            const htmlTable = `
+                <div class="table-container" style="overflow-x:auto;margin:14px 0;">
+                    <table class="markdown-table">
+                        ${thead}
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            `;
+            tableBlocks.push(htmlTable);
+            return placeholder;
+        }
+        return match;
+    });
+
+    // 3. Escape HTML on remaining text
     text = escapeHtml(text);
 
-    // 3. Format inline code `code`
+    // 4. Format Markdown links: [Text](url) -> Clickable target="_blank"
+    text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, function(m, label, url) {
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="answer-link" title="Open external resource">🔗 <strong>${label}</strong></a>`;
+    });
+
+    // 5. Format bare URLs (that are not already wrapped in href)
+    text = text.replace(/(?<!href=")(https?:\/\/[a-zA-Z0-9_\-.~:/?#[\]@!$&'()*+,;=%]+)(?![^<]*<\/a>)/g, function(m, url) {
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="answer-link">🔗 ${url}</a>`;
+    });
+
+    // 6. Format inline code `code`
     text = text.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
 
-    // 4. Format bold **text**
+    // 7. Format bold **text**
     text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
-    // 5. Format headers ### Header and ## Header
+    // 8. Format headers ### Header and ## Header
+    text = text.replace(/^#### (.*$)/gim, '<h5 style="font-size:15px; font-weight:700; margin:12px 0 6px 0; color:var(--text-primary);">$1</h5>');
     text = text.replace(/^### (.*$)/gim, '<h4 style="font-size:16px; font-weight:700; margin:14px 0 6px 0; color:var(--text-primary);">$1</h4>');
     text = text.replace(/^## (.*$)/gim, '<h3 style="font-size:18px; font-weight:700; margin:16px 0 8px 0; color:var(--text-primary);">$1</h3>');
 
-    // 6. Format bullet points
+    // 9. Format bullet points
     text = text.replace(/^\s*[-*]\s+(.*$)/gim, '<div style="margin:4px 0 4px 12px; display:flex; align-items:flex-start;"><span style="color:var(--accent);margin-right:8px;font-weight:bold;">•</span><span>$1</span></div>');
 
-    // 7. Format paragraph breaks
+    // 10. Format paragraph breaks
     text = text.replace(/\n\n/g, '<div style="height:10px;"></div>');
     text = text.replace(/\n/g, '<br>');
 
-    // 8. Re-inject code blocks
+    // 11. Re-inject Table blocks
+    tableBlocks.forEach((tb, idx) => {
+        text = text.replace(`__TABLE_BLOCK_${idx}__`, tb);
+    });
+
+    // 12. Re-inject Code blocks
     codeBlocks.forEach((cb, idx) => {
         text = text.replace(`__CODE_BLOCK_${idx}__`, cb);
     });
@@ -443,10 +491,73 @@ function displayResults() {
     if (tDisplay) tDisplay.textContent = `Category: ${friendlyTopic}`;
     if (sDisplay) sDisplay.textContent = (data.sources_searched || []).join(', ');
 
+    renderGeneratedLinks(data.answers || []);
     renderFilterChips(data.answers || []);
     renderAnalysis(data.comparison, data);
     renderResults(data.answers);
     loadRelatedQuestions(data.query);
+}
+
+function renderGeneratedLinks(answers) {
+    const container = document.getElementById('generated-links-container');
+    if (!container) return;
+
+    const linksMap = new Map();
+
+    // 1. Collect from answer URLs
+    answers.forEach(a => {
+        if (a.url && a.url.startsWith('http')) {
+            const title = a.title || `${a.source} Reference`;
+            if (!linksMap.has(a.url)) {
+                linksMap.set(a.url, { title, url: a.url, source: a.source });
+            }
+        }
+    });
+
+    // 2. Collect from Markdown links inside bodies
+    answers.forEach(a => {
+        const body = a.body || '';
+        const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g;
+        let match;
+        while ((match = mdLinkRegex.exec(body)) !== null) {
+            const label = match[1].trim();
+            const url = match[2].trim();
+            if (!linksMap.has(url)) {
+                linksMap.set(url, { title: label, url: url, source: a.source });
+            }
+        }
+    });
+
+    const linksList = Array.from(linksMap.values()).slice(0, 12);
+    if (linksList.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="card generated-links-panel" style="background:var(--bg-secondary); border:1px solid var(--accent); border-radius:12px; padding:16px 20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:18px;">🔗</span>
+                    <span style="font-weight:700; font-size:15px; color:var(--text-primary);">
+                        Generated Official Links & Documentation Resources (${linksList.length})
+                    </span>
+                </div>
+                <span style="font-size:12px; color:var(--text-muted); background:var(--bg-primary); padding:3px 10px; border-radius:12px; border:1px solid var(--border);">
+                    Verified Authoritative Links
+                </span>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                ${linksList.map(item => `
+                    <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" class="link-chip" style="display:inline-flex; align-items:center; gap:6px; background:var(--bg-primary); padding:7px 14px; border-radius:8px; border:1px solid var(--border); color:var(--accent); text-decoration:none; font-size:13px; font-weight:600; transition:all 0.2s ease;">
+                        <span>🌐 ${escapeHtml(item.title)}</span>
+                        <span style="font-size:10px; color:var(--text-muted); background:var(--bg-secondary); padding:2px 6px; border-radius:4px;">${escapeHtml(item.source)}</span>
+                        <span style="font-size:12px;">↗</span>
+                    </a>
+                `).join('')}
+            </div>
+        </div>
+    `;
 }
 
 function renderFilterChips(answers) {

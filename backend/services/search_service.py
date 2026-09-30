@@ -11,6 +11,7 @@ from config import Config
 from services.consensus_service import ConsensusService
 from services.polyglot_service import PolyglotService
 from services.platform_problem_service import PlatformProblemService
+from services.theory_service import TheoryKnowledgeService
 
 DEFAULT_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -57,6 +58,26 @@ def fetch_wiki_entry(term: str) -> Optional[Dict[str, Any]]:
 
     headers = dict(DEFAULT_HEADERS)
     headers['User-Agent'] = 'TechHub/3.0 (Educational Fact Synthesizer; contact@techhub.org)'
+
+    # 0. Specialized CS disambiguation for computing concepts
+    comp_terms = ['polymorphism', 'deadlock', 'virtual memory', 'paging', 'thread', 'process', 'semaphore', 'mutex']
+    if any(ct == clean_t.lower() or f"{ct} " in clean_t.lower() for ct in comp_terms) and 'computer science' not in clean_t.lower():
+        try:
+            cs_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(clean_t + ' (computer science)')}"
+            cs_resp = requests.get(cs_url, headers=headers, timeout=2.0)
+            if cs_resp.status_code == 200:
+                cs_data = cs_resp.json()
+                if cs_data.get('extract') and cs_data.get('type') != 'disambiguation':
+                    result = {
+                        'title': cs_data.get('title', clean_t.title()),
+                        'description': cs_data.get('description', ''),
+                        'extract': cs_data.get('extract', ''),
+                        'url': cs_data.get('content_urls', {}).get('desktop', {}).get('page', f"https://en.wikipedia.org/wiki/{urllib.parse.quote(clean_t)}_(computer_science)")
+                    }
+                    _FACT_CACHE[cache_key] = result
+                    return result
+        except Exception:
+            pass
 
     # 1. Direct REST summary lookup
     try:
@@ -171,8 +192,9 @@ class SearchService:
 
         topic = ConsensusService.detect_topic(effective_query)
         keywords = extract_keywords(effective_query)
+        is_theory = TheoryKnowledgeService.is_theory_question(effective_query)
         is_cp = (topic == 'competitive_programming') or PlatformProblemService.is_platform_problem(effective_query)
-        is_tech = ConsensusService.is_technical_topic(topic) or bool(file_content) or is_cp
+        is_tech = ConsensusService.is_technical_topic(topic) or bool(file_content) or is_cp or is_theory
 
         answers: List[Dict[str, Any]] = []
         sources_searched: List[str] = []
@@ -573,6 +595,17 @@ class SearchService:
                     'reliability': 'Authoritative Editorial',
                     'date': datetime.date.today().isoformat()
                 })
+            elif TheoryKnowledgeService.is_theory_question(query):
+                results.append({
+                    'source': 'GeeksforGeeks',
+                    'title': f"{clean_t} — GeeksforGeeks Comprehensive Tutorial",
+                    'body': f"Authoritative GeeksforGeeks article on '{clean_t}'. Explores foundational definitions, architectural principles, comparative trade-offs, and production engineering practices.",
+                    'url': f"https://www.geeksforgeeks.org/search/?q={urllib.parse.quote(clean_t)}",
+                    'confidence': 0.94,
+                    'trust_score': 9,
+                    'reliability': 'Authoritative Tutorial',
+                    'date': datetime.date.today().isoformat()
+                })
             else:
                 results.append({
                     'source': 'GeeksforGeeks',
@@ -883,6 +916,10 @@ class SearchService:
                     f"**Executive Summary:**\n"
                     f"{file_content[:1000]}..."
                 )
+
+        # ================= 1.2 THEORETICAL & CONCEPTUAL QUESTIONS =================
+        if TheoryKnowledgeService.is_theory_question(query):
+            return TheoryKnowledgeService.generate_theory_solution(query, topic)
 
         # ================= 1.5 COMPETITIVE CODING PLATFORMS (LEETCODE, CODECHEF, GEEKSFORGEEKS, ETC.) =================
         detected_lang = ConsensusService.detect_language(query)

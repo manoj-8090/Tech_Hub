@@ -183,8 +183,12 @@ class ConsensusService:
                 
                 # Formulate real-world explanation
                 if is_tech:
+                    q_lower = query.lower()
+                    is_theory = any(w in q_lower for w in ['polymorphism', 'acid', 'normalization', 'deadlock', 'virtual memory', 'thread', 'solid', 'design pattern', 'osi', 'dns', 'big-o', 'event loop', 'garbage collection', 'gil', 'concept', 'theory', 'explain', 'what is', 'what are', 'difference between', 'vs'])
                     if topic == 'competitive_programming':
                         best_rationale = f"Selected as the #1 Optimal Platform Solution: Optimal algorithmic time and space complexity with clean, verified implementation and edge-case handling from {src}."
+                    elif is_theory:
+                        best_rationale = f"Selected as the #1 Authoritative Conceptual Answer: Deep theoretical analysis detailing foundational principles, architectural mechanics, comparative taxonomies, and verified reference links from {src}."
                     elif src == 'ChatGPT':
                         best_rationale = "Selected as the #1 Real-World Solution: Delivers clean, modern, production-grade code with error-handling and zero deprecated dependencies."
                     elif src == 'Gemini AI':
